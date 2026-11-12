@@ -5,7 +5,7 @@ no ai was used in the creation of this project, at any stage.
 ### working so far:
 - read ingredients
 - annotate product pages that have the blacklisted ingredients
-- highlight search results that have the blacklisted ingredients
+- highlight links to products that have the blacklisted ingredients
 
 ### how it works:
 - modify script's config to add blacklisted ingredients, it will display these up the top of the page
@@ -19,6 +19,10 @@ no ai was used in the creation of this project, at any stage.
   - indicate blacklist reason in results?
 - store more nuanced and more useful information from blacklists. (not sure how far to go with this)
   - if blacklisted ingredients list changes, url blacklist should change too.
-- actually, i should probably display my header and do the highlighting on any page that has products on it, not "any nonproduct page"
-  - add to product, search results, bought-before, homepage?
-  - prevent it in account settings?
+
+### ideas
+- actually, i should probably display my header and do the highlighting on any page that has products on it, not "any page"
+  - only to product, search results, bought-before, homepage?
+  - all except in account settings?
+  - all?
+- highlight checked/unchecked? don't want false confidence that something's free of blacklistees.
