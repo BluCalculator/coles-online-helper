@@ -10,43 +10,53 @@
 //todo: make sharable with the rest of the world
 //todo: provide instructions on installing to friends
 
+
 ///////////////
 // constants //
 ///////////////
 
+
 const vtype=Object.freeze({
-    SILENT: 0,
-    LOG: 1,
-    VERBOSE: 2,
-    DEBUG: 3,
-    WARNING: 4,
-    ERROR: 5
+    SILENT: 0, 0:"SILENT",
+    LOG: 1, 1: "LOG",
+    VERBOSE: 2, 2: "VERBOSE",
+    DEBUG: 3, 3: "DEBUG",
+    WARNING: 4, 4: "WARNING",
+    ERROR: 5, 5: "ERROR"
 });
 
 /////////////
 // configs //
 /////////////
-var verbosity=vtype.DEBUG;
 var ingredientBlacklist=[]; //eg: ingredientBlacklist=["mushroom","pumpkin"];
 var urlBlacklist=[];
 var negativeHighlightStyle="background-color: red;"
 var displayIngredientBlacklistHeader=true;
 
-var localStorageFuckery=false;
-
 /////////////
 // strings //
 /////////////
+//from the webpage/source
 const colesDomain="coles.com.au";
+const colesHeaderID="coles-targeting-header-container"
 const productPagePATH="product";
 const nutritionInfoID="nutrient-table";
 const ingredientsID="ingredients-control";
 
+//for the code
+const ingredientBlacklistID="ingredientBlacklist";
+
+//////////
+// vars //
+//////////
+var targets=-1;
+
+
 //////////////////////////
-// localstorage fuckery //
+// localstorage reset //
 //////////////////////////
 {
-  if (localStorageFuckery) {
+  if (false) {
     localStorage.clear();
     localStorage.ingredientBlacklist=JSON.stringify(["mushroom","pumpkin"]);
   }
@@ -54,14 +64,14 @@ const ingredientsID="ingredients-control";
 /////////////
 // startup //
 /////////////
-spam(vtype.LOG,"Starting Coles Analyser. Verbosity: "+verbosity);
 
+spam(vtype.LOG,"Starting Coles Analyser.");
 addEventListener("DOMContentLoaded", (event) => {
   spam(vtype.DEBUG, "content's loaded");
   loadURLBlacklist();
-  spam(3, "URL blacklist: "+urlBlacklist);
+  spam(vtype.DEBUG, "resulting URL blacklist: "+urlBlacklist);
   loadIngredientBlacklist();
-  spam(3, "ingredient blacklist: "+ingredientBlacklist);
+  spam(vtype.DEBUG, "resulting ingredient blacklist: "+ingredientBlacklist);
 });
 
 addEventListener("load", (event) => {
@@ -71,52 +81,71 @@ addEventListener("load", (event) => {
 
 spam(vtype.DEBUG, "code's loaded");
 
-////////////////////////
-// lets do some shit! //
-////////////////////////
+/////////////////////////
+// lets do some stuff! //
+/////////////////////////
+//main
 function pageParser(URLstr) {
   let pageURL=new URL(URLstr);
   let hn=pageURL.hostname;
   if (hn.substring(hn.length-colesDomain.length,hn.length)=="coles.com.au") {
     //it's coles!
-    spam(3, "this is coles!")
+    spam(vtype.DEBUG, "this is coles!")
     if (pageURL.pathname.substr(1,7)==productPagePATH) {
-      spam(3, "This is a product page!");
+      spam(vtype.DEBUG, "This is a product page!");
       nutrientPanelParser();
       ingredientsParser();
     } else {
-      if (displayIngredientBlacklistHeader) {
-        let header=document.getElementById("coles-targeting-header-container");
-        header.innerHTML="<div id='ingredientBlacklist' style='background-color:pink;text-align:center;'></div>"+header.innerHTML
-        document.getElementById("ingredientBlacklist").innerHTML="Blacklist: ";
-        for (ingredient of ingredientBlacklist) {
-          document.getElementById("ingredientBlacklist").innerHTML+=ingredient+" ";
-        }
-        setInterval(huntForBlacklisted,2000);
-      }
+      spam(vtype.DEBUG, "this is a product page");
     }
+    if (displayIngredientBlacklistHeader) {
+      createHeader();
+    }
+    huntForBlacklisted();
+    spam(vtype.DEBUG, "intervalID="+setInterval(huntForBlacklisted,2000));
   } else {
-    spam(2, "this isn't coles");
+    spam(vtype.VERBOSE, "this isn't coles");
   }
 }
 
+function createHeader() {
+    let warning=document.createElement("div");
+    warning.id=ingredientBlacklistID;
+    warning.style="background-color:pink;text-align:center;";
+    warning.innerHTML="Blacklist: ";
+    switch (ingredientBlacklist.length) {
+      case 0:
+        warning.innerHTML+="empty"
+        break;
+      case 1:
+        warning.innerHTML+=ingredientBlacklist[0];
+        break;
+      default:
+        for (let i=0;i<ingredientBlacklist.length-2;i++) {
+          warning.innerHTML+=ingredientBlacklist[i]+", ";
+        }
+        warning.innerHTML+=ingredientBlacklist[ingredientBlacklist.length-2]+" and "+ingredientBlacklist[ingredientBlacklist.length-1];
+    }
+    let colesHeader=document.getElementById(colesHeaderID);
+    colesHeader.insertBefore(warning, colesHeader.children[0]);
+}
 function ingredientsParser() {
-  spam(3,"we parsing ingredients");
+  spam(vtype.DEBUG,"we parsing ingredients");
   let ing=document.getElementById(ingredientsID);
   let productName=document.getElementsByTagName("h1")[0];
   let thisPath=new URL(document.URL).pathname;
-  for (shit of ingredientBlacklist) {
-    if (ing.innerHTML.toLowerCase().indexOf(shit.toLowerCase())!=-1) {
-      spam(1,"WE FOUND SOME SHIT: "+shit);
-      productName.innerHTML="<span style='color:red;'>"+shit+"</span>+ "+productName.innerHTML;
+  for (banned of ingredientBlacklist) {
+    if (ing.innerHTML.toLowerCase().indexOf(banned.toLowerCase())!=-1) {
+      spam(log,"Found banned ingredient: "+banned);
+      productName.innerHTML="<span style='color:red;'>"+banned+"</span>+ "+productName.innerHTML;
       if (urlBlacklist.indexOf(thisPath)==-1) {
         urlBlacklist.push(thisPath);
       }
     } else {
-      spam(3,"no "+shit+" found");
+      spam(vtype.DEBUG,"no "+banned+" found");
     }
   }
-  spam(3,"ingredients list: "+ing.innerHTML)
+  spam(vtype.DEBUG,"ingredients list: "+ing.innerHTML)
   saveURLBlacklist();
 }
 function nutrientPanelParser () {
@@ -150,19 +179,28 @@ function nutrientPanelParser () {
 }
 
 function huntForBlacklisted() {
+  loadURLBlacklist();//just in case
   let links=document.getElementsByTagName("a")
-  let targets=0;
+  let _targets=0;
   for (lnk of links) {
     for (path of urlBlacklist) {
-      if (lnk.href.indexOf(path)!=-1) {
-        lnk.parentElement.parentElement.style=negativeHighlightStyle;
+      if (lnk.href=="" || lnk.attributes.href.value=="#")
+        continue;
+      if (lnk.attributes.href.value.indexOf(path)!=-1) {
+        if (document.URL.indexOf(productPagePATH)==-1)
+        {
+          lnk.parentElement.parentElement.style=negativeHighlightStyle;
+        }
         lnk.parentElement.style=negativeHighlightStyle;
         lnk.style=negativeHighlightStyle;
-        targets++;
+        _targets++;
       }
     }
   }
-  spam(3,"guess who's back, after hunting down "+targets/2+" links");
+  if (targets!=_targets) {
+    targets=_targets;
+    spam(vtype.DEBUG,"guess who's back, after hunting down "+targets+" links");
+  }
 }
 
 //////////////////////
@@ -170,9 +208,9 @@ function huntForBlacklisted() {
 //////////////////////
 function spam(priority,content) {
   let msg=timestamp()
-    +" KAI'S TOOL: ";
-  if (spam.caller.name.length>0)
-  msg+=spam.caller.name+": "
+    +" KAI'S TOOL: "+vtype[priority]+" ";
+  if (spam.caller && spam.caller.name.length>0)
+    msg+=spam.caller.name+": "
   msg+=content;
   switch (priority) {
     case 0:
@@ -196,28 +234,31 @@ function spam(priority,content) {
 }
 function timestamp() {
   let d=new Date();
-  let str=""+d.getFullYear()+"-"+d.getMonth()+"-"+d.getDate()+" "+d.getHours()+":"+d.getMinutes()+":"+d.getSeconds()+"."+d.getMilliseconds();
+  let str=""+d.getFullYear()
+       +"-"+(d.getMonth()+1+"").padStart(2,0)
+       +"-"+(d.getDate()+"").padStart(2,0)
+       +" "+(d.getHours()+"").padStart(2,0)
+       +":"+(d.getMinutes()+"").padStart(2,0)
+       +":"+(d.getSeconds()+"").padStart(2,0)
+       +"."+(d.getMilliseconds()+"").padStart(3,0);
   return str;
 }
 
 function loadIngredientBlacklist() {
-  spam(3, "localstorage ingredient blacklist: "+localStorage.ingredientBlacklist)
   if (localStorage.ingredientBlacklist)
     for (item of JSON.parse(localStorage.ingredientBlacklist)) {
-    spam(3,"checking if "+item+" is in the ingredientBlacklist");
-    if (ingredientBlacklist.indexOf(item)==-1)
-      ingredientBlacklist.push(item);
-    } spam(3, "ingredient blacklist="+ingredientBlacklist);
+      if (ingredientBlacklist.indexOf(item)==-1) {
+        ingredientBlacklist.push(item);
+      }
+    }
 }
 function saveIngredientBlacklist() {
   localStorage.ingredientBlacklist=JSON.stringify(ingredientBlacklist);
 }
 
 function loadURLBlacklist() {
-  spam(3, "localstorage url blacklist: "+localStorage.urlBlacklist)
   if (localStorage.urlBlacklist)
     for (item of JSON.parse(localStorage.urlBlacklist)) {
-    spam(3,"checking if "+item+" is in the urlBlacklist");
     if (urlBlacklist.indexOf(item)==-1)
       urlBlacklist.push(item);
     }
